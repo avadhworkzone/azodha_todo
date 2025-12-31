@@ -1,8 +1,8 @@
-import 'package:azodha_todo_app/features/tasks/bloc/task_event.dart';
-import 'package:azodha_todo_app/features/tasks/bloc/task_state.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 
+import 'task_event.dart';
+import 'task_state.dart';
 import '../domain/entities/task.dart';
 import '../domain/repositories/task_repository.dart';
 
@@ -36,56 +36,107 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   }
 
   Future<void> _addTask(AddTaskEvent event, Emitter emit) async {
-    final task = Task(
-      id: const Uuid().v4(),
-      title: event.title,
-      completed: false,
-      isSynced: true,
-    );
+    emit(state.copyWith(status: TaskStatus.loading));
 
-    await repository.addTask(task);
+    try {
+      final task = Task(
+        id: const Uuid().v4(),
+        title: event.title,
+        completed: false,
+        isSynced: true,
+      );
 
-    final updated = [task, ...state.tasks];
-    emit(state.copyWith(tasks: updated, filteredTasks: updated));
+      await repository.addTask(task);
+
+      final updated = [task, ...state.tasks];
+      emit(state.copyWith(
+        status: TaskStatus.success,
+        tasks: updated,
+        filteredTasks: updated,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        status: TaskStatus.failure,
+        errorMessage: e.toString(),
+      ));
+    }
   }
 
   Future<void> _toggleTask(ToggleTaskEvent event, Emitter emit) async {
-    final updatedTask = event.task.copyWith(
-      completed: !event.task.completed,
-    );
+    emit(state.copyWith(status: TaskStatus.loading));
 
-    await repository.updateTask(updatedTask);
+    try {
+      final updatedTask = event.task.copyWith(
+        completed: !event.task.completed,
+      );
 
-    final updated = state.tasks.map((t) {
-      return t.id == updatedTask.id ? updatedTask : t;
-    }).toList();
+      await repository.updateTask(updatedTask);
 
-    emit(state.copyWith(tasks: updated, filteredTasks: updated));
+      final updated = state.tasks.map((t) {
+        return t.id == updatedTask.id ? updatedTask : t;
+      }).toList();
+
+      emit(state.copyWith(
+        status: TaskStatus.success,
+        tasks: updated,
+        filteredTasks: updated,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        status: TaskStatus.failure,
+        errorMessage: e.toString(),
+      ));
+    }
   }
 
   Future<void> _deleteTask(DeleteTaskEvent event, Emitter emit) async {
-    await repository.deleteTask(event.task);
+    emit(state.copyWith(status: TaskStatus.loading));
 
-    final updated =
-    state.tasks.where((t) => t.id != event.task.id).toList();
+    try {
+      await repository.deleteTask(event.task);
 
-    emit(state.copyWith(tasks: updated, filteredTasks: updated));
+      final updated =
+      state.tasks.where((t) => t.id != event.task.id).toList();
+
+      emit(state.copyWith(
+        status: TaskStatus.success,
+        tasks: updated,
+        filteredTasks: updated,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        status: TaskStatus.failure,
+        errorMessage: e.toString(),
+      ));
+    }
   }
 
   void _searchTask(SearchTaskEvent event, Emitter emit) {
     final filtered = state.tasks
-        .where((t) =>
-        t.title.toLowerCase().contains(event.query.toLowerCase()))
+        .where(
+          (t) => t.title.toLowerCase().contains(
+        event.query.toLowerCase(),
+      ),
+    )
         .toList();
 
     emit(state.copyWith(filteredTasks: filtered));
   }
 
-  /// 🔥 IMPORTANT FIX
   Future<void> _syncPending(
-      SyncPendingTasks event, Emitter emit) async {
-    await repository.syncPendingTasks();
-    add(LoadTasks()); // reload after sync
+      SyncPendingTasks event,
+      Emitter emit,
+      ) async {
+    emit(state.copyWith(status: TaskStatus.loading));
+
+    try {
+      await repository.syncPendingTasks();
+      add(LoadTasks());
+    } catch (e) {
+      emit(state.copyWith(
+        status: TaskStatus.failure,
+        errorMessage: e.toString(),
+      ));
+    }
   }
 }
-
