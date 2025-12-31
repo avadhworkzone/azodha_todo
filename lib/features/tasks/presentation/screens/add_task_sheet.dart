@@ -13,10 +13,31 @@ class AddTaskSheet extends StatefulWidget {
 
 class _AddTaskSheetState extends State<AddTaskSheet> {
   final TextEditingController controller = TextEditingController();
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    controller.addListener(() {
+      setState(() {}); // 🔥 rebuild on text change
+    });
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
 
   void _submit() {
     final text = controller.text.trim();
-    if (text.isEmpty) return;
+
+    if (text.isEmpty) {
+      setState(() {
+        _errorText = 'Task title cannot be empty';
+      });
+      return;
+    }
 
     context.read<TaskBloc>().add(AddTaskEvent(text));
     Navigator.pop(context);
@@ -24,32 +45,88 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isValid = controller.text.trim().isNotEmpty;
+
     return Padding(
       padding: MediaQuery.of(context).viewInsets,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(24),
+          ),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Add Task',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            // Drag handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade400,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
+
+            Text(
+              'New Task',
+              style: theme.textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Add a task to your list',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: Colors.grey),
+            ),
+
+            const SizedBox(height: 20),
+
             TextField(
               controller: controller,
               autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'Enter task title',
-                border: OutlineInputBorder(),
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                hintText: 'What needs to be done?',
+                errorText: _errorText,
+                filled: true,
+                fillColor: theme.colorScheme.surfaceVariant,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
               ),
+              onChanged: (_) {
+                if (_errorText != null) {
+                  setState(() => _errorText = null);
+                }
+              },
               onSubmitted: (_) => _submit(),
             ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _submit,
-              child: const Text('Add'),
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: isValid ? _submit : null,
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Add Task',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
             ),
           ],
         ),

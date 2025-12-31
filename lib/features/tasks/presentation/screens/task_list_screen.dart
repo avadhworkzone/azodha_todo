@@ -26,7 +26,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
   void initState() {
     super.initState();
 
-    // load cached + remote tasks
     context.read<TaskBloc>().add(LoadTasks());
 
     sub = Connectivity().onConnectivityChanged.listen((results) {
@@ -43,16 +42,12 @@ class _TaskListScreenState extends State<TaskListScreen> {
     super.dispose();
   }
 
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Tasks'),
-      ),
+    final theme = Theme.of(context);
 
-      // 🔥 FAB
-      floatingActionButton: FloatingActionButton(
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           showModalBottomSheet(
             context: context,
@@ -60,95 +55,154 @@ class _TaskListScreenState extends State<TaskListScreen> {
             builder: (_) => const AddTaskSheet(),
           );
         },
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('Add Task'),
       ),
 
-      body: Column(
-        children: [
-          // 🔍 Search Bar
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child:TextField(
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Search tasks...',
-              ),
-              onChanged: (value) {
-                _debouncer(() {
-                  context.read<TaskBloc>().add(SearchTaskEvent(value));
-                });
-              },
-            )
-
-          ),
-
-          // 📋 Task List
-          Expanded(
-            child: BlocBuilder<TaskBloc, TaskState>(
-              builder: (context, state) {
-                if (state.status == TaskStatus.loading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (state.status == TaskStatus.failure) {
-                  return Center(
-                    child: Text(state.errorMessage ?? 'Something went wrong'),
-                  );
-                }
-
-                if (state.filteredTasks.isEmpty) {
-                  return const Center(child: Text('No tasks found'));
-                }
-
-                // 🔄 Pull to Refresh
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    context.read<TaskBloc>().add(LoadTasks());
-                  },
-                  child: ListView.builder(
-                    itemCount: state.filteredTasks.length,
-                    itemBuilder: (context, index) {
-                      final task = state.filteredTasks[index];
-
-                      return ListTile(
-                        leading: Checkbox(
-                          value: task.completed,
-                          onChanged: (_) {
-                            context
-                                .read<TaskBloc>()
-                                .add(ToggleTaskEvent(task));
-                          },
-                        ),
-                        title: Text(
-                          task.title,
-                          style: TextStyle(
-                            decoration: task.completed
-                                ? TextDecoration.lineThrough
-                                : null,
-                          ),
-                        ),
-                        subtitle: task.isSynced
-                            ? null
-                            : const Text(
-                          'Pending sync…',
-                          style: TextStyle(color: Colors.orange),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () {
-                            context
-                                .read<TaskBloc>()
-                                .add(DeleteTaskEvent(task));
-                          },
-                        ),
-                      );
-                    },
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 🔹 Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  Text(
+                    'My Tasks',
+                    style: theme.textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                );
-              },
+                ],
+              ),
             ),
-          ),
-        ],
+
+            // 🔍 Search Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search tasks',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceVariant,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: (value) {
+                  _debouncer(() {
+                    context.read<TaskBloc>().add(SearchTaskEvent(value));
+                  });
+                },
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // 📋 Task List
+            Expanded(
+              child: BlocBuilder<TaskBloc, TaskState>(
+                builder: (context, state) {
+                  if (state.status == TaskStatus.loading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (state.status == TaskStatus.failure) {
+                    return Center(
+                      child: Text(
+                        state.errorMessage ?? 'Something went wrong',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    );
+                  }
+
+                  if (state.filteredTasks.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No tasks yet',
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: Colors.grey),
+                      ),
+                    );
+                  }
+
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      context.read<TaskBloc>().add(LoadTasks());
+                    },
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                      itemCount: state.filteredTasks.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final task = state.filteredTasks[index];
+
+                        return Card(
+                          elevation: 0.8,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: ListTile(
+                            leading: Checkbox(
+                              value: task.completed,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              onChanged: (_) {
+                                context
+                                    .read<TaskBloc>()
+                                    .add(ToggleTaskEvent(task));
+                              },
+                            ),
+                            title: Text(
+                              task.title,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                decoration: task.completed
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                            ),
+                            subtitle: task.isSynced
+                                ? null
+                                : Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Row(
+                                children: const [
+                                  Icon(Icons.sync,
+                                      size: 14, color: Colors.orange),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Pending sync',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.orange,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.red,
+                              ),
+                              onPressed: () {
+                                context
+                                    .read<TaskBloc>()
+                                    .add(DeleteTaskEvent(task));
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
